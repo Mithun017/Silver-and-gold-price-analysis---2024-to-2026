@@ -243,32 +243,38 @@ def get_prediction(df):
     if df.empty or len(df) < 50:
         return {"outlook": "Insufficient Data", "forecast": []}
         
-    df = df.copy().dropna()
-    df['Time'] = np.arange(len(df))
+    df_reg = df.copy().dropna()
+    # Prepare for regression (Linear Regression using Numpy Polyfit to save space)
+    # X = days from start, y = price
+    df_reg['Days'] = (df_reg['Date'] - df_reg['Date'].min()).dt.days
     
-    X = df[['Time']]
-    y = df['XAU']
+    X = df_reg['Days'].values
+    y = df_reg['XAU'].values
     
-    model = LinearRegression()
-    model.fit(X, y)
-    
-    last_time = df['Time'].iloc[-1]
-    future_time = np.arange(last_time + 1, last_time + 8).reshape(-1, 1)
-    forecast = model.predict(future_time)
-    
-    trend_slope = model.coef_[0]
-    
-    outlook = "Neutral"
-    if trend_slope > 0.5:
-        outlook = "Bullish Bias"
-    elif trend_slope < -0.5:
-        outlook = "Bearish Bias"
+    if len(X) > 1:
+        # Degree 1 = Linear
+        slope, intercept = np.polyfit(X, y, 1)
         
-    return {
-        "outlook": outlook,
-        "forecast_prices": forecast.tolist(),
-        "slope": trend_slope
-    }
+        # Predict next 7 days
+        last_day = X[-1]
+        future_days = np.array([last_day + i for i in range(1, 8)])
+        future_prices = slope * future_days + intercept
+        
+        # Outlook
+        outlook = "Neutral"
+        if slope > 0.5: # Threshold for "significant" slope
+            outlook = "Bullish Bias"
+        elif slope < -0.5: # Threshold for "significant" slope
+            outlook = "Bearish Bias"
+            
+        return {
+            "slope": float(slope),
+            "intercept": float(intercept),
+            "outlook": outlook,
+            "forecast_prices": future_prices.tolist()
+        }
+    else:
+        return {"outlook": "Insufficient Data", "forecast_prices": []}
 
 def get_full_analysis():
     df = fetch_data()
