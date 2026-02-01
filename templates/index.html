@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold & Silver Market Analysis</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Precious Metals Analysis</h1>
+            <p>Institutional-grade analysis for XAU & XAG</p>
+        </header>
+
+        <section class="summary-cards">
+            <div class="card">
+                <h3>Market Trend</h3>
+                <div id="trend-indicator" class="indicator neutral">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Gold Price (Now)</h3>
+                <div id="gold-price" class="price">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Silver Price (Now)</h3>
+                <div id="silver-price" class="price">Loading...</div>
+            </div>
+            <div class="card">
+                <h3>Gold/Silver Ratio</h3>
+                <div id="gs-ratio" class="ratio">Loading...</div>
+            </div>
+        </section>
+
+        <section class="charts-section">
+            <div class="chart-container">
+                <h2>Gold (XAU) - Daily Price & Moving Averages</h2>
+                <canvas id="goldChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>Silver (XAG) - Daily Price</h2>
+                <canvas id="silverChart"></canvas>
+            </div>
+        </section>
+
+        <section class="analysis-section">
+            <div class="analysis-block">
+                <h2>Market Phases & Momentum</h2>
+                <p>
+                    <strong>Momentum Analysis:</strong> <span id="momentum-text">Analyzing market cache...</span>
+                </p>
+                <div class="phase-indicator">
+                    <span>Accumulation</span>
+                    <span class="active-phase">Expansion</span>
+                    <span>Distribution</span>
+                    <span>Correction</span>
+                </div>
+            </div>
+            
+            <div class="analysis-block">
+                <h2>Future Outlook (Non-Trading Advice)</h2>
+                <div class="prediction-box">
+                    <h3>Short-Term Forecast (7 Days)</h3>
+                    <p id="prediction-text">Calculating probabilities...</p>
+                    <div id="forecast-values"></div>
+                    <small>*Based on Linear Regression & Trend Continuity. Not financial advice.*</small>
+                </div>
+            </div>
+        </section>
+        
+        <footer>
+            <p>Data provided by MetalPriceAPI. Analysis generated automatically.</p>
+        </footer>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+venv/
+__pycache__/
+*.pyc
+historical_data.csv
+.DS_Store

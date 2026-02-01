@@ -1,0 +1,16 @@
+@echo off
+echo Starting Gold & Silver Analysis Dashboard...
+echo Activating Virtual Environment...
+call venv\Scripts\activate
+
+echo Starting Flask Server...
+start "" python app.py
+
+echo Waiting for server to initialize...
+timeout /t 5 /nobreak >nul
+
+echo Opening Dashboard in Browser...
+start http://127.0.0.1:5000
+
+echo Application runs in the background. Close the Python window to stop.
+pause
