@@ -34,6 +34,7 @@ function renderCharts(dailyData) {
     const goldMA50 = dailyData.map(d => d.XAU_MA50);
     const goldMA200 = dailyData.map(d => d.XAU_MA200);
     const silverPrices = dailyData.map(d => d.XAG);
+    const signals = dailyData.map(d => d.Signal || "Neutral"); // Get signals
 
     // Update Current Prices in Cards
     const lastRec = dailyData[dailyData.length - 1];
@@ -140,7 +141,16 @@ function renderCharts(dailyData) {
                     titleColor: '#1e293b',
                     bodyColor: '#1e293b',
                     borderColor: 'rgba(0,0,0,0.1)',
-                    borderWidth: 1
+                    borderWidth: 1,
+                    callbacks: {
+                        afterLabel: function (context) {
+                            const index = context.dataIndex;
+                            const signal = signals[index];
+                            if (signal && signal !== "Hold/Neutral" && signal !== "Neutral") {
+                                return `Signal: ${signal}`;
+                            }
+                        }
+                    }
                 }
             }
         }

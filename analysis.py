@@ -124,6 +124,20 @@ def process_data(df):
     # Gold-Silver Ratio
     df['Gold_Silver_Ratio'] = df['XAU'] / df['XAG']
     
+    # Generate Signals (Educational Purpose)
+    df['Signal'] = "Hold/Neutral"
+    
+    # Simple Logic:
+    # Entry: Price closes above 50MA (Momentum)
+    # Exit: Price closes below 50MA
+    
+    # Vectorized comparison
+    df.loc[df['XAU'] > df['XAU_MA50'], 'Signal'] = "Technical Bullish Zone (Entry Watch)"
+    df.loc[df['XAU'] < df['XAU_MA50'], 'Signal'] = "Technical Bearish Zone (Exit/Wait)"
+    
+    # Refine with Support/Resistance proximity?
+    # Complex to do efficiently per row without iteration, but 50MA proxy is good for "Entry/Exit" visualization.
+    
     return df
 
 def detect_support_resistance(df):
