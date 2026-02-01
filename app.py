@@ -46,7 +46,10 @@ def api_analysis():
     
     return jsonify({
         "trend": data['current_trend'],
-        "prediction": data['prediction']
+        "prediction": data['prediction'],
+        "levels": data.get('levels', {}),
+        "market_events": data.get('market_events', []),
+        "momentum_text": data.get('momentum_text', "")
     })
 
 if __name__ == '__main__':

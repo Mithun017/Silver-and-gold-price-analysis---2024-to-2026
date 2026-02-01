@@ -15,20 +15,27 @@ TICKERS = {
     "XAG": "SI=F"
 }
 
-CACHE_FILE = "historical_data.csv"
+# Check if running in a writable environment or use tmp
+import tempfile
+
+# Use temp directory for cache to support serverless (read-only FS)
+CACHE_FILE = os.path.join(tempfile.gettempdir(), "historical_data.csv")
 
 def fetch_data():
     """
     Fetches historical data using yfinance for the last 2 years.
     """
     if os.path.exists(CACHE_FILE):
-        file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(CACHE_FILE))
-        # Cache valid for 12 hours
-        if datetime.datetime.now() - file_mod_time < datetime.timedelta(hours=12):
-            print("Loading from cache...")
-            df = pd.read_csv(CACHE_FILE)
-            df['Date'] = pd.to_datetime(df['Date'])
-            return df
+        try:
+            file_mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(CACHE_FILE))
+            # Cache valid for 12 hours
+            if datetime.datetime.now() - file_mod_time < datetime.timedelta(hours=12):
+                print("Loading from cache...")
+                df = pd.read_csv(CACHE_FILE)
+                df['Date'] = pd.to_datetime(df['Date'])
+                return df
+        except Exception as e:
+            print(f"Cache read error: {e}")
 
     print("Fetching data from yfinance...")
     end_date = datetime.datetime.now()
@@ -83,7 +90,10 @@ def fetch_data():
     df = df.sort_values('Date')
     
     if not df.empty:
-        df.to_csv(CACHE_FILE, index=False)
+        try:
+            df.to_csv(CACHE_FILE, index=False)
+        except Exception as e:
+            print(f"Warning: Could not save cache to {CACHE_FILE}: {e}")
     
     return df
 
@@ -116,6 +126,45 @@ def process_data(df):
     
     return df
 
+def detect_support_resistance(df):
+    """
+    Identifies key Support and Resistance levels based on weekly pivots.
+    Returns lists of values.
+    """
+    if df.empty: return {"supports": [], "resistances": []}
+    
+    # Use weekly highs/lows to find levels
+    weekly = df.set_index('Date').resample('ME').agg({'XAU': ['max', 'min']})
+    weekly.columns = ['High', 'Low']
+    
+    # Simple logic: Top 2 highest highs (Resistance) and Bottom 2 higher lows (Support)
+    # This is rudimentary.
+    
+    # Better approach for lines:
+    # Resistance = Recent All Time High or 52-week High
+    # Support = Recent Local Low (e.g. 50-day low)
+    
+    # XAU Levels
+    recents_xau = df.tail(300)
+    r_xau = recents_xau['XAU'].max()
+    s_xau = recents_xau['XAU'].min()
+    
+    # XAG Levels
+    recents_xag = df.tail(300)
+    r_xag = recents_xag['XAG'].max()
+    s_xag = recents_xag['XAG'].min()
+    
+    return {
+        "xau": {
+            "resistances": [r_xau],
+            "supports": [s_xau]
+        },
+        "xag": {
+            "resistances": [r_xag],
+            "supports": [s_xag]
+        }
+    }
+
 def analyze_market_structure(df):
     """
     Determines current trend based on MA alignment and Price action.
@@ -139,7 +188,7 @@ def analyze_market_structure(df):
     elif val_xau < val_ma50 and val_ma50 < val_ma200:
         trend = "Bearish"
     else:
-        trend = "Sideways / Consolidation"
+        trend = "Sideways"
         
     return trend
 
@@ -226,6 +275,7 @@ def get_full_analysis():
     df = process_data(df)
     trend = analyze_market_structure(df)
     events = detect_rallies_and_dips(df)
+    sr_levels = detect_support_resistance(df)
     prediction = get_prediction(df)
     
     # Weekly aggregation
@@ -248,12 +298,35 @@ def get_full_analysis():
     daily_data = daily_records.where(pd.notnull(daily_records), None).to_dict(orient='records')
     weekly_data = weekly_records.where(pd.notnull(weekly_records), None).to_dict(orient='records')
 
+    # Generate Momentum Text
+    latest = df.iloc[-1]
+    momentum_text = "Market is finding equilibrium."
+    
+    # Simple logic using Returns and MA
+    ma_50 = latest['XAU_MA50']
+    price = latest['XAU']
+    
+    if pd.notna(ma_50):
+        dist_pct = (price - ma_50) / ma_50
+        if dist_pct > 0.05:
+            momentum_text = "Strong upward momentum, price significantly above 50-day average. Watch for potential overextension."
+        elif dist_pct > 0.01:
+            momentum_text = "Steady bullish pressure. Price is holding above key moving averages."
+        elif dist_pct < -0.05:
+            momentum_text = "Significant downward pressure. Price is extended to the downside."
+        elif dist_pct < -0.01:
+            momentum_text = "Bearish sentiment prevails, trading below the average."
+        else:
+            momentum_text = "Price is consolidating near the 50-day average, indicating a potential breakout or breakdown soon."
+
     return {
         "daily_data": daily_data,
         "weekly_data": weekly_data,
         "current_trend": trend,
         "market_events": events,
-        "prediction": prediction
+        "levels": sr_levels,
+        "prediction": prediction,
+        "momentum_text": momentum_text
     }
 
 if __name__ == "__main__":

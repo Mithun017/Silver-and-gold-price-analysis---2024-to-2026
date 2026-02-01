@@ -1,31 +1,30 @@
-document.addEventListener('DOMContentLoaded', () => {
-    fetchData();
-    fetchAnalysis();
-});
+let globalAnalysisData = {};
 
-async function fetchData() {
+document.addEventListener('DOMContentLoaded', loadDashboard);
+
+async function loadDashboard() {
     try {
-        const response = await fetch('/api/data');
-        const data = await response.json();
+        const [respData, respAnalysis] = await Promise.all([
+            fetch('/api/data'),
+            fetch('/api/analysis')
+        ]);
 
+        const data = await respData.json();
+        const analysisData = await respAnalysis.json();
+        globalAnalysisData = analysisData; // Store for chart use
+
+        // Update UI Text elements
+        if (analysisData.trend) {
+            updateDashboard(analysisData);
+        }
+
+        // Render Charts using both data sources
         if (data.daily) {
             renderCharts(data.daily);
         }
-    } catch (error) {
-        console.error('Error fetching data:', error);
-    }
-}
 
-async function fetchAnalysis() {
-    try {
-        const response = await fetch('/api/analysis');
-        const data = await response.json();
-
-        if (data.trend) {
-            updateDashboard(data);
-        }
     } catch (error) {
-        console.error('Error fetching analysis:', error);
+        console.error('Error loading dashboard:', error);
     }
 }
 
@@ -36,8 +35,6 @@ function renderCharts(dailyData) {
     const goldMA200 = dailyData.map(d => d.XAU_MA200);
     const silverPrices = dailyData.map(d => d.XAG);
 
-    // Filter nulls or handle them? Chart.js handles nulls by breaking the line, which is fine.
-
     // Update Current Prices in Cards
     const lastRec = dailyData[dailyData.length - 1];
     if (lastRec) {
@@ -46,36 +43,79 @@ function renderCharts(dailyData) {
         document.getElementById('gs-ratio').textContent = (lastRec.XAU / lastRec.XAG).toFixed(2);
     }
 
+    // Extract levels from GLOBAL data
+    const levels = globalAnalysisData.levels || {};
+    const xauLevels = levels.xau || { supports: [], resistances: [] };
+    const xagLevels = levels.xag || { supports: [], resistances: [] };
+
+    // Helper to create annotations
+    const createAnnotations = (lvlObj) => {
+        const anns = [];
+        (lvlObj.resistances || []).forEach(r => {
+            anns.push({
+                label: `Resistance`,
+                data: new Array(dates.length).fill(r),
+                borderColor: '#dc2626',
+                borderWidth: 1.5,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+            });
+        });
+        (lvlObj.supports || []).forEach(s => {
+            anns.push({
+                label: `Support`,
+                data: new Array(dates.length).fill(s),
+                borderColor: '#16a34a',
+                borderWidth: 1.5,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false
+            });
+        });
+        return anns;
+    };
+
+    const goldAnnotations = createAnnotations(xauLevels);
+    const silverAnnotations = createAnnotations(xagLevels);
+
     // Gold Chart
     const ctxGold = document.getElementById('goldChart').getContext('2d');
-    new Chart(ctxGold, {
+
+    // Merge datasets
+    const goldDatasets = [
+        {
+            label: 'Gold Price (USD)',
+            data: goldPrices,
+            borderColor: '#d97706', // Dark gold
+            backgroundColor: 'rgba(217, 119, 6, 0.1)',
+            tension: 0.2, // Smoother line
+            pointRadius: 0,
+            borderWidth: 2
+        },
+        {
+            label: '50-Day MA',
+            data: goldMA50,
+            borderColor: '#38bdf8',
+            borderWidth: 1.5,
+            pointRadius: 0
+        },
+        {
+            label: '200-Day MA',
+            data: goldMA200,
+            borderColor: '#818cf8',
+            borderWidth: 1.5,
+            pointRadius: 0
+        },
+        ...goldAnnotations
+    ];
+
+    if (window.goldChartInstance) window.goldChartInstance.destroy();
+    window.goldChartInstance = new Chart(ctxGold, {
         type: 'line',
         data: {
             labels: dates,
-            datasets: [
-                {
-                    label: 'Gold Price (USD)',
-                    data: goldPrices,
-                    borderColor: '#fbbf24',
-                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                    tension: 0.1,
-                    pointRadius: 0
-                },
-                {
-                    label: '50-Day MA',
-                    data: goldMA50,
-                    borderColor: '#38bdf8',
-                    borderWidth: 1,
-                    pointRadius: 0
-                },
-                {
-                    label: '200-Day MA',
-                    data: goldMA200,
-                    borderColor: '#f472b6',
-                    borderWidth: 1,
-                    pointRadius: 0
-                }
-            ]
+            datasets: goldDatasets
         },
         options: {
             responsive: true,
@@ -85,45 +125,66 @@ function renderCharts(dailyData) {
             },
             scales: {
                 x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: { color: '#64748b' }
                 },
                 y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' }
+                    grid: { color: 'rgba(0,0,0,0.05)' },
+                    ticks: { color: '#64748b' }
                 }
             },
             plugins: {
-                legend: { labels: { color: '#94a3b8' } }
+                legend: { labels: { color: '#475569' } },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#1e293b',
+                    bodyColor: '#1e293b',
+                    borderColor: 'rgba(0,0,0,0.1)',
+                    borderWidth: 1
+                }
             }
         }
     });
 
-    // Silver Chart
+    // Silver Chart (Similar styling)
     const ctxSilver = document.getElementById('silverChart').getContext('2d');
-    new Chart(ctxSilver, {
+
+    const silverDatasets = [
+        {
+            label: 'Silver Price (USD)',
+            data: silverPrices,
+            borderColor: '#64748b',
+            backgroundColor: 'rgba(100, 116, 139, 0.1)',
+            tension: 0.2,
+            pointRadius: 0,
+            borderWidth: 2
+        },
+        ...silverAnnotations
+    ];
+
+    if (window.silverChartInstance) window.silverChartInstance.destroy();
+    window.silverChartInstance = new Chart(ctxSilver, {
         type: 'line',
         data: {
             labels: dates,
-            datasets: [{
-                label: 'Silver Price (USD)',
-                data: silverPrices,
-                borderColor: '#cbd5e1',
-                backgroundColor: 'rgba(203, 213, 225, 0.1)',
-                tension: 0.1,
-                pointRadius: 0
-            }]
+            datasets: silverDatasets
         },
         options: {
             responsive: true,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
+            interaction: { mode: 'index', intersect: false },
             scales: {
-                x: { grid: { color: 'rgba(255,255,255,0.05)' } },
-                y: { grid: { color: 'rgba(255,255,255,0.05)' } }
+                x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b' } },
+                y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b' } }
             },
             plugins: {
-                legend: { labels: { color: '#94a3b8' } }
+                legend: { labels: { color: '#475569' } },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#1e293b',
+                    bodyColor: '#1e293b',
+                    borderColor: 'rgba(0,0,0,0.1)',
+                    borderWidth: 1
+                }
             }
         }
     });
@@ -137,6 +198,12 @@ function updateDashboard(analysisData) {
         analysisData.trend.includes('Bullish') ? 'bullish' :
             analysisData.trend.includes('Bearish') ? 'bearish' : 'neutral'
     );
+
+    // Momentum Text
+    const momentumEl = document.getElementById('momentum-text');
+    if (analysisData.momentum_text) {
+        momentumEl.textContent = analysisData.momentum_text;
+    }
 
     // Prediction
     const predEl = document.getElementById('prediction-text');
@@ -159,7 +226,7 @@ function updateDashboard(analysisData) {
     } else if (analysisData.trend === 'Bearish') {
         phases[3].classList.add('active-phase'); // Correction
     } else {
-        phases[0].classList.add('active-phase'); // Accumulation (or Distribution, ambiguous)
+        phases[0].classList.add('active-phase'); // Accumulation
     }
 
     const forecastVals = document.getElementById('forecast-values');
@@ -176,7 +243,9 @@ function updateDashboard(analysisData) {
             eventContainer = document.createElement('div');
             eventContainer.className = 'analysis-block events-section';
             eventContainer.innerHTML = '<h2>Recent Market Events</h2><ul id="events-list"></ul>';
-            document.querySelector('.analysis-section').appendChild(eventContainer);
+            // Insert before footer
+            const footer = document.querySelector('footer');
+            footer.parentNode.insertBefore(eventContainer, footer);
         }
 
         const list = document.getElementById('events-list');
@@ -185,7 +254,7 @@ function updateDashboard(analysisData) {
             const li = document.createElement('li');
             li.innerHTML = `<strong>${e.Date} (${e.Type}):</strong> ${e.Description}`;
             li.style.marginTop = '0.5rem';
-            li.style.color = e.Type === 'Rally' ? '#22c55e' : '#ef4444';
+            li.style.color = e.Type === 'Rally' ? '#16a34a' : '#ef4444';
             list.appendChild(li);
         });
     }
